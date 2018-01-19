@@ -1,4 +1,4 @@
-# prometheus-ephemeral - a small Prometheus instance in every OpenShift project
+# prometheus-ephemeral - Prometheus in every OpenShift project
 
 ## Motivation
 
