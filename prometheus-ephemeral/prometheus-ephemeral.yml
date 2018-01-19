@@ -29,10 +29,14 @@ metadata:
 
       A "view" RoleBinding in the project is created and is required for
       service discovery.
-    #iconClass: "icon-cogs"
-    tags: "monitoring,prometheus,time-series"
+    tags: "quickstart,monitoring,prometheus,time-series"
     openshift.io/provider-display-name: "AdNovum Informatik AG"
     openshift.io/documentation-url: "https://github.com/adnovum/adnovum-openshift-templates/blob/master/prometheus-ephemeral"
+    template.openshift.io/bindable: "false"
+  message: |-
+    The following service has been created in your project: prometheus.
+
+    For more information about using this template, including OpenShift considerations, see https://github.com/adnovum/adnovum-openshift-templates/blob/master/prometheus-ephemeral/README.md
 
 parameters:
 - name: PROMETHEUS_IMAGE
