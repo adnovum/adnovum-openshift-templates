@@ -59,7 +59,7 @@ of concept that demonstrate how you can deploy a Pod inside of your projects
 with the following containers:
 
 - prometheus
-- blackbox\_exporter
+- blackbox-exporter
 - kube-state-metrics
 
 It requires no configuration and exposes a route, so that you can immediately
@@ -70,3 +70,8 @@ look at the metrics in Prometheus at the following URL:
 You are then supposed to configure a Prometheus server outside of OpenShift
 to pull metrics using the federation protocol. You can then in that outside
 instance implement alerting, etc.
+
+Compared to the other Prometheus deployments that you can find online, the main
+difference is that it doesn't require cluster-admin rights, and that involved
+making sure that it restricts the namespace when doing API calls for service
+discovery. This makes sure that the "view" project role is enough.
