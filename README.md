@@ -3,8 +3,7 @@
 This is AdNovum's repository of open-source templates to create OpenShift
 Applications.
 
-Currently we have:
+Each template has its own directory with a README describing it.
 
-| prometheus-ephemeral | Prometheus server to be deployed inside of projects |
-
-We provide no warranty and also no support for these. See also: <LICENSE>
+We provide no warranty and also no support for the contents of this repository.
+See also: [LICENSE](LICENSE)
