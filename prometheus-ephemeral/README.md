@@ -74,4 +74,4 @@ instance implement alerting, etc.
 Compared to the other Prometheus deployments that you can find online, the main
 difference is that it doesn't require cluster-admin rights, and that involved
 making sure that it restricts the namespace when doing API calls for service
-discovery. This makes sure that the "view" project role is enough.
+discovery.
