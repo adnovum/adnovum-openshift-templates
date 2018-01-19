@@ -1,0 +1,307 @@
+apiVersion: v1
+kind: Template
+labels:
+  app: prometheus
+metadata:
+  name: prometheus-ephemeral
+  annotations:
+    description:  >-
+      A Prometheus server to be deployed from within your project, and that
+      doesn't require the "cluster-reader" role. Super easy to deploy.
+
+
+      The deployed Prometheus instance does service discovery of your project
+      resources, and automatically polls your annotated metrics endpoints.
+      Also, a blackbox_exporter is used for probing of services, and
+      kube-state-metrics is configured to get "state" metrics about your
+      objects (like number of pods, etc.).
+
+
+      Prometheus uses EmptyDir for storage, and retains metrics only for 2
+      hours. It is meant to be used only as temporary storage for the metrics,
+      which can be federated from a bigger Prometheus instance outside of the
+      OpenShift project for long-term storage, alerting, visualization, etc.
+
+
+      Authentication / authorization is not implemented. You are supposed to
+      protect the exposed prometheus URL.
+
+
+      A "view" RoleBinding in the project is created and is required for
+      service discovery.
+    #iconClass: "icon-cogs"
+    tags: "monitoring,prometheus,time-series"
+    openshift.io/provider-display-name: "AdNovum Informatik AG"
+    openshift.io/documentation-url: "https://github.com/adnovum/adnovum-openshift-templates/blob/master/prometheus-ephemeral"
+
+parameters:
+- name: PROMETHEUS_IMAGE
+  description: "Prometheus image to use"
+  required: true
+  value: prom/prometheus:v2.0.0
+- name: BLACKBOX_EXPORTER_IMAGE
+  description: "Blackbox exporter image to use"
+  required: true
+  value: prom/blackbox-exporter:v0.11.0
+- name: KUBE_STATE_METRICS_IMAGE
+  description: "kube-state-metrics image to use"
+  required: true
+  value: quay.io/coreos/kube-state-metrics:v1.2.0
+- name: KUBE_STATE_METRICS_COLLECTORS
+  description: List of kube-state-metrics collectors to configure
+  # note: "cronjobs" disabled for now due to https://github.com/kubernetes/kube-state-metrics/issues/337
+  required: true
+  value: replicationcontrollers,persistentvolumeclaims,daemonsets,jobs,limitranges,replicasets,resourcequotas,services,deployments,statefulsets,pods
+
+objects:
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: prometheus
+  spec:
+    ports:
+    - name: 9090-tcp
+      port: 9090
+    selector:
+      app: prometheus
+      deploymentconfig: prometheus
+
+- apiVersion: v1
+  kind: Route
+  metadata:
+    name: prometheus
+  spec:
+    port:
+      targetPort: 9090-tcp
+    to:
+      kind: Service
+      name: prometheus
+      weight: 100
+
+- apiVersion: v1
+  kind: ServiceAccount
+  metadata:
+      name: prometheus
+
+- apiVersion: authorization.openshift.io/v1
+  kind: RoleBinding
+  metadata:
+    name: prometheus-view
+  roleRef:
+    name: view
+  subjects:
+  - kind: ServiceAccount
+    name: prometheus
+
+- apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    name: prometheus-config
+  data:
+      "prometheus.yml.template": |
+          global:
+            scrape_interval:     15s
+            evaluation_interval: 15s
+          scrape_configs:
+          - job_name: 'prometheus'
+            static_configs:
+            - targets: ['localhost:9090']
+          # Scraping of application metrics via pods
+          - job_name: 'kubernetes-pods'
+            kubernetes_sd_configs:
+            - role: pod
+              namespaces:
+                names:
+                - '{{MY_POD_NAMESPACE}}'
+            tls_config:
+              ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+            bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+            relabel_configs:
+            - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+              action: keep
+              regex: true
+            - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+              action: replace
+              target_label: __metrics_path__
+              regex: (.+)
+            - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scheme]
+              action: replace
+              target_label: __scheme__
+              regex: (.+)
+            - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+              action: replace
+              regex: ([^:]+)(?::\d+)?;(\d+)
+              replacement: $1:$2
+              target_label: __address__
+            - action: labelmap
+              regex: __meta_kubernetes_pod_label_(.+)
+            - source_labels: [__meta_kubernetes_namespace]
+              action: replace
+              target_label: kubernetes_namespace
+            - source_labels: [__meta_kubernetes_pod_name]
+              action: replace
+              target_label: kubernetes_pod_name
+          # Scraping of application metrics via services
+          - job_name: 'kubernetes-endpoints'
+            kubernetes_sd_configs:
+            - role: endpoints
+              namespaces:
+                names:
+                - '{{MY_POD_NAMESPACE}}'
+            tls_config:
+              ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+            bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+            relabel_configs:
+            - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_scrape]
+              action: keep
+              regex: true
+            - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_scheme]
+              action: replace
+              target_label: __scheme__
+              regex: (https?)
+            - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_path]
+              action: replace
+              target_label: __metrics_path__
+              regex: (.+)
+            - source_labels: [__address__, __meta_kubernetes_service_annotation_prometheus_io_port]
+              action: replace
+              target_label: __address__
+              regex: (.+)(?::\d+);(\d+)
+              replacement: $1:$2
+            - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_username]
+              action: replace
+              target_label: __basic_auth_username__
+              regex: (.+)
+            - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_password]
+              action: replace
+              target_label: __basic_auth_password__
+              regex: (.+)
+            - action: labelmap
+              regex: __meta_kubernetes_service_label_(.+)
+            - source_labels: [__meta_kubernetes_namespace]
+              action: replace
+              target_label: kubernetes_namespace
+            - source_labels: [__meta_kubernetes_service_name]
+              action: replace
+              target_label: kubernetes_name
+          # Probing of service availability (with blackbox exporter)
+          - job_name: 'kubernetes-service-probes'
+            kubernetes_sd_configs:
+            - role: service
+              namespaces:
+                names:
+                - '{{MY_POD_NAMESPACE}}'
+            tls_config:
+              ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+            bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+            metrics_path: /probe
+            params:
+              module: [http_2xx]
+            relabel_configs:
+            - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_probe]
+              action: keep
+              regex: true
+            - source_labels: [__address__]
+              target_label: __param_target
+            - target_label: __address__
+              replacement: localhost:9115
+            - source_labels: [__param_target]
+              target_label: instance
+            - action: labelmap
+              regex: __meta_kubernetes_service_label_(.+)
+            - source_labels: [__meta_kubernetes_namespace]
+              target_label: kubernetes_namespace
+            - source_labels: [__meta_kubernetes_service_name]
+              target_label: kubernetes_name
+          - job_name: 'kube-state-metrics'
+            static_configs:
+              - targets:
+                  - localhost:8080
+
+- apiVersion: v1
+  kind: DeploymentConfig
+  metadata:
+    name: prometheus
+  spec:
+    replicas: 1
+    selector:
+      app: prometheus
+      deploymentconfig: prometheus
+    template:
+      metadata:
+        labels:
+          app: prometheus
+          deploymentconfig: prometheus
+      spec:
+        serviceAccountName: prometheus
+        containers:
+        - name: prometheus
+          image: ${PROMETHEUS_IMAGE}
+          imagePullPolicy: Always
+          ports:
+          - containerPort: 9090
+            protocol: TCP
+          command: ["/bin/sh"]
+          args:
+            - "-c"
+            - >-
+                sed -e "s/{{MY_POD_NAMESPACE}}/$MY_POD_NAMESPACE/" </etc/prometheus/prometheus.yml.template >/etc/prometheus/prometheus.yml;
+                /bin/prometheus
+                --config.file=/etc/prometheus/prometheus.yml
+                --web.listen-address=:9090
+                --web.console.templates=/usr/share/prometheus/consoles
+                --web.console.libraries=/usr/share/prometheus/console_libraries
+                --storage.tsdb.path=/prometheus
+                --storage.tsdb.retention=2h
+                --storage.tsdb.min-block-duration=15m
+                --storage.tsdb.max-block-duration=60m
+          env:
+            - name: MY_POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          volumeMounts:
+          - name: datadir
+            mountPath: /prometheus
+          - name: prometheus-config
+            mountPath: "/etc/prometheus"
+        - name: kube-state-metrics
+          image: ${KUBE_STATE_METRICS_IMAGE}
+          imagePullPolicy: Always
+          ports:
+          - name: http-metrics
+            containerPort: 8080
+          args:
+          - "--namespace"
+          - "$(MY_POD_NAMESPACE)"
+          - "--collectors"
+          - "${KUBE_STATE_METRICS_COLLECTORS}"
+          - "--port"
+          - "8080"
+          - "--telemetry-port"
+          - "8081"
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            timeoutSeconds: 5
+          env:
+            - name: MY_POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+        - name: blackbox-exporter
+          image: ${BLACKBOX_EXPORTER_IMAGE}
+          imagePullPolicy: Always
+          ports:
+          - containerPort: 9115
+            protocol: TCP
+        volumes:
+        - name: datadir
+          emptyDir: {}
+        - name: prometheus-config
+          configMap:
+              name: prometheus-config
+    triggers:
+    - type: ConfigChange
