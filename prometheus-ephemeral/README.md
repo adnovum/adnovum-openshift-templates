@@ -29,6 +29,8 @@ of every project.
 
 ## General Concept
 
+![Prometheus Ephemeral Diagram](prometheus-ephemeral-diagram.png)
+
 The basic idea is to have a Prometheus instance inside of projects, which only
 stores data for a couple of hours, and doesn't use persistent storage. Using
 Prometheus' federation, the data can then be transfered to a Prometheus outside
