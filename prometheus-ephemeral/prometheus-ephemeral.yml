@@ -42,11 +42,11 @@ parameters:
 - name: PROMETHEUS_IMAGE
   description: "Prometheus image to use"
   required: true
-  value: prom/prometheus:v2.0.0
+  value: prom/prometheus:v2.2.1
 - name: BLACKBOX_EXPORTER_IMAGE
   description: "Blackbox exporter image to use"
   required: true
-  value: prom/blackbox-exporter:v0.11.0
+  value: prom/blackbox-exporter:v0.12.0
 - name: KUBE_STATE_METRICS_IMAGE
   description: "kube-state-metrics image to use"
   required: true
@@ -249,9 +249,9 @@ objects:
           args:
             - "-c"
             - >-
-                sed -e "s/{{MY_POD_NAMESPACE}}/$MY_POD_NAMESPACE/" </etc/prometheus/prometheus.yml.template >/etc/prometheus/prometheus.yml;
+                sed -e "s/{{MY_POD_NAMESPACE}}/$MY_POD_NAMESPACE/" </etc/prometheus/prometheus.yml.template >/tmp/prometheus.yml;
                 /bin/prometheus
-                --config.file=/etc/prometheus/prometheus.yml
+                --config.file=/tmp/prometheus.yml
                 --web.listen-address=:9090
                 --web.console.templates=/usr/share/prometheus/consoles
                 --web.console.libraries=/usr/share/prometheus/console_libraries
