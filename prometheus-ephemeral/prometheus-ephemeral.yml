@@ -117,9 +117,6 @@ objects:
               namespaces:
                 names:
                 - '{{MY_POD_NAMESPACE}}'
-            tls_config:
-              ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-            bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
             relabel_configs:
             - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
               action: keep
@@ -152,9 +149,6 @@ objects:
               namespaces:
                 names:
                 - '{{MY_POD_NAMESPACE}}'
-            tls_config:
-              ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-            bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
             relabel_configs:
             - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_scrape]
               action: keep
@@ -195,9 +189,6 @@ objects:
               namespaces:
                 names:
                 - '{{MY_POD_NAMESPACE}}'
-            tls_config:
-              ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-            bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
             metrics_path: /probe
             params:
               module: [http_2xx]
